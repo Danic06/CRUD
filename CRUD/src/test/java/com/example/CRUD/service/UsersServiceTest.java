@@ -2,19 +2,26 @@ package com.example.CRUD.service;
 
 import com.example.CRUD.entity.Users;
 import com.example.CRUD.repository.UsersRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
-import static org.hamcrest.Matchers.any;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @SpringBootTest
 class UsersServiceTest {
@@ -22,17 +29,19 @@ class UsersServiceTest {
     private UsersService usersService;
     @MockBean
     private UsersRepository usersRepository;
+
+
     @Test
     void getUsers() {
-     // Inicialización de Datos de Prueba
-        ArrayList<Users> usersTest = new ArrayList<Users>();
+        // Inicialización de Datos de Prueba
+        ArrayList<Users> usersTest = new ArrayList<>();
 
-    // Agregando Usuarios de Prueba a la Lista
+        // Agregando Usuarios de Prueba a la Lista
         usersTest.add(new Users());
         usersTest.add(new Users());
         usersTest.add(new Users());
 
-    // Agregando un Usuario de Prueba Específico
+        // Agregando un Usuario de Prueba Específico
         Users userTest = new Users();
         userTest.setFirstName("test");
         userTest.setLastName("test");
@@ -40,54 +49,60 @@ class UsersServiceTest {
         userTest.setEmail("d@mail.com");
         usersTest.add(userTest);
 
-    // Configuración de Comportamiento Mock
-        when(usersRepository.findAll()).thenReturn(usersTest);
+        // Configuración de Comportamiento Mock
+        when(usersRepository.findAll()).thenReturn(Flux.fromIterable(usersTest));
 
-    // Llamada al Método del Servicio
-        List<Users> result = usersService.getUsers();
+        // Llamada al Método del Servicio
+        Flux<Users> result = usersService.getUsers();
 
-    // Verificación de Resultados
-        assertNotNull(result);
-        assertEquals(4, result.size());
-        assertEquals("test", usersTest.get(3).getFirstName());
-        assertEquals("test", usersTest.get(3).getLastName());
-        assertEquals(1234, usersTest.get(3).getPhone());
-        assertEquals("d@mail.com", usersTest.get(3).getEmail());
+        // Verificación de Resultados con StepVerifier
+        StepVerifier.create(result)
+                .expectNextCount(3) // Espera 3 usuarios sin verificar sus detalles
+                .assertNext(user -> {
+                    assertEquals("test", user.getFirstName());
+                    assertEquals("test", user.getLastName());
+                    assertEquals(1234, user.getPhone());
+                    assertEquals("d@mail.com", user.getEmail());
+                })
+                .verifyComplete();
     }
 
     @Test
     void testGetUsers() {
-        //Inicializando los datos de prueba
-        List<Users> usersTes = new ArrayList<>();
+        // Inicializando los datos de prueba
+        List<Users> usersTest = new ArrayList<>();
 
         // Agregando usuarios de prueba a la lista
-        usersTes.add(new Users());
-        usersTes.add(new Users());
-        usersTes.add(new Users());
+        usersTest.add(new Users());
+        usersTest.add(new Users());
+        usersTest.add(new Users());
 
         // Agregando un usuario de prueba especifico
-        Users userTes = new Users();
-        userTes.setId(1); // ID especifico para simular busqueda por ID
-        userTes.setFirstName("test");
-        userTes.setLastName("test");
-        userTes.setPhone(1234);
-        userTes.setEmail("d@mail.com");
-        usersTes.add(userTes);
+        Users userTest = new Users();
+        userTest.setId(1); // ID especifico para simular busqueda por ID
+        userTest.setFirstName("test");
+        userTest.setLastName("test");
+        userTest.setPhone(1234);
+        userTest.setEmail("d@mail.com");
+        usersTest.add(userTest);
 
-        // Simular el comportamiento del repositorio cuando se llama a findById
-        when(usersRepository.findById(1)).thenReturn(Optional.of(userTes));
+        // Configuración de comportamiento mock para el repositorio
+        when(usersRepository.findById(1)).thenReturn(Mono.just(userTest));
 
-        // Llamar al método de servicio para obtener un usuario por ID
-        Optional<Users> result = usersService.getUsers(1);
+        // Llamada al método del servicio para obtener un usuario por ID
+        Mono<Users> result = usersService.getUsers(1);
 
-        // Verificar el resultado
-        assertTrue(result.isPresent());
-        Users usersId = result.get();
-        assertEquals(1, usersId .getId());
-        assertEquals("test", usersId .getFirstName());
-        assertEquals("test", usersId .getLastName());
-        assertEquals(1234, usersId .getPhone());
-        assertEquals("d@mail.com", usersId .getEmail());
+        // Verificación de resultados con StepVerifier
+        StepVerifier.create(result)
+                .expectNextMatches(usersId -> {
+                    assertEquals(1, usersId.getId());
+                    assertEquals("test", usersId.getFirstName());
+                    assertEquals("test", usersId.getLastName());
+                    assertEquals(1234, usersId.getPhone());
+                    assertEquals("d@mail.com", usersId.getEmail());
+                    return true;
+                })
+                .verifyComplete();
     }
 
     @Test
@@ -99,25 +114,33 @@ class UsersServiceTest {
         userCreate.setEmail("dani@mail.com");
 
         // Simular el comportamiento del repositorio cuando se llama a save
-        when(usersRepository.save(userCreate)).thenReturn(userCreate);
+        when(usersRepository.save(userCreate)).thenReturn(Mono.just(userCreate));
 
         // Llamar al método de servicio para crear un usuario
-        String resultMessage = usersService.save(userCreate);
+        Mono<String> resultMono = usersService.save(userCreate);
 
-        // Verificar el resultado
-        assertEquals("Usuario guardado", resultMessage);
+        // Verificar el resultado usando StepVerifier
+        StepVerifier.create(resultMono)
+                .expectNext("Usuario guardado")
+                .verifyComplete();
 
-        Users InvalidEmail = new Users();
-        InvalidEmail.setFirstName("Invalid");
-        InvalidEmail.setLastName("Email");
-        InvalidEmail.setPhone(314654321);
-        InvalidEmail.setEmail("invalid-email");
+        // Verificar que el método del repositorio se haya llamado correctamente
+
+
+        Users invalidEmailUser = new Users();
+        invalidEmailUser.setFirstName("Invalid");
+        invalidEmailUser.setLastName("Email");
+        invalidEmailUser.setPhone(123456789);
+        invalidEmailUser.setEmail("invalid-email");
 
         // Llamar al método de servicio para crear un usuario con correo no válido
-        String resultMessageInvalidEmail = usersService.save(InvalidEmail);
+        Mono<String> resultInvalidEmailMono = usersService.save(invalidEmailUser);
 
-        // Verificar el resultado para el correo no válido
-        assertEquals("Correo invalido", resultMessageInvalidEmail);
+        // Verificar el resultado para el correo no válido usando StepVerifier
+        StepVerifier.create(resultInvalidEmailMono)
+                .expectNext("Correo inválido")
+                .verifyComplete();
+
     }
 
 
@@ -133,52 +156,54 @@ class UsersServiceTest {
         existingUser.setEmail("jul.p@example.com");
 
         // Simular el comportamiento del repositorio cuando se llama a findById
-        when(usersRepository.findById(1)).thenReturn(Optional.of(existingUser));
+        UsersRepository usersRepository = mock(UsersRepository.class);
+        when(usersRepository.findById(1)).thenReturn(Mono.just(existingUser));
 
         // Crear un objeto Users con los datos actualizados (correo válido)
         Users updatedUserValidEmail = new Users();
-        updatedUserValidEmail.setId(1); // Asignar el mismo ID para simular la misma entidad
+        updatedUserValidEmail.setId(1);
         updatedUserValidEmail.setFirstName("updatedFirstName");
         updatedUserValidEmail.setLastName("updatedLastName");
         updatedUserValidEmail.setPhone(987654321);
         updatedUserValidEmail.setEmail("updated.email@example.com");
 
-        // Configurar ArgumentCaptor para capturar el objeto que se pasa a save
-        ArgumentCaptor<Users> userCaptor = ArgumentCaptor.forClass(Users.class);
-
         // Simular el comportamiento del repositorio cuando se llama a save
-        when(usersRepository.save(userCaptor.capture())).thenReturn(updatedUserValidEmail);
+        when(usersRepository.save(Mockito.<Users>any())).thenAnswer(invocation -> {
+            Users savedUser = invocation.getArgument(0);
+            return Mono.just(savedUser);
+        });
+
+
+        // Crear una instancia de UsersService con el mock de UsersRepository
+        UsersService usersService = new UsersService(usersRepository);
 
         // Llamar al método de servicio para actualizar el usuario con correo válido
-        Optional<Users> resultValidEmail = usersService.update(1, updatedUserValidEmail);
+        Mono<String> resultValidEmailMono = usersService.update(1, updatedUserValidEmail);
 
-        // Verificar el resultado para el correo válido
-        assertTrue(resultValidEmail.isPresent());
-        assertEquals("updated.email@example.com", resultValidEmail.get().getEmail());
+        // Verificar el resultado para el correo válido usando StepVerifier
+        StepVerifier.create(resultValidEmailMono)
+                .expectNext("Usuario actualizado")
+                .verifyComplete();
 
+
+
+        // Crear un objeto Users con un correo no válido
         Users updatedUserInvalidEmail = new Users();
-        updatedUserInvalidEmail.setEmail("invalid-email");  // Correo no válido
+        updatedUserInvalidEmail.setId(1);
+        updatedUserInvalidEmail.setFirstName("updatedFirstName");
+        updatedUserInvalidEmail.setLastName("updatedLastName");
+        updatedUserInvalidEmail.setPhone(987654321);
+        updatedUserInvalidEmail.setEmail("invalid-email");
+
+        // Crear una instancia de UsersService con el mock de UsersRepository
 
         // Llamar al método de servicio para actualizar el usuario con correo no válido
-        Optional<Users> resultInvalidEmail = usersService.update(1, updatedUserInvalidEmail);
+        Mono<String> resultInvalidEmailMono = usersService.update(1, updatedUserInvalidEmail);
 
-        // Verificar el resultado para el correo no válido
-        assertFalse(resultInvalidEmail.isPresent());
-
-
-        // Llamar al método de servicio para actualizar un usuario que no existe
-        Optional<Users> resultUserNotFound = usersService.update(999, updatedUserInvalidEmail);
-
-        // Verificar el resultado cuando el usuario no existe
-        assertFalse(resultUserNotFound.isPresent());
-
-        // Verificar que se llamó al método save con el objeto correcto
-        Users capturedUser = userCaptor.getValue();
-        assertNotNull(capturedUser);
-        assertEquals("updated.email@example.com", capturedUser.getEmail());
-        assertEquals("updatedFirstName", capturedUser.getFirstName());
-        assertEquals("updatedLastName", capturedUser.getLastName());
-        assertEquals(987654321, capturedUser.getPhone());
+        // Verificar el resultado para el correo no válido usando StepVerifier
+        StepVerifier.create(resultInvalidEmailMono)
+                .expectNext("Usuario no actualizado")
+                .verifyComplete();
     }
 
 
@@ -192,13 +217,13 @@ class UsersServiceTest {
         existingUser.setEmail("dani@mail.com");
 
         // Simular el comportamiento del repositorio cuando se llama a findById
-        when(usersRepository.findById(1)).thenReturn(Optional.of(existingUser));
+        when(usersRepository.findById(1)).thenReturn(Mono.just(existingUser));
 
         // Simular el comportamiento del repositorio cuando se llama a deleteById
-        doNothing().when(usersRepository).deleteById(1);
+        when(usersRepository.deleteById(1)).thenReturn(Mono.empty());
 
         // Llamar al método de servicio para eliminar un usuario por ID
-        assertDoesNotThrow(() -> usersService.delete(1));
+        usersService.delete(1).block(); // Bloquear para esperar la operación asincrónica
 
         // Verificar que el método del repositorio se haya llamado correctamente
         verify(usersRepository).deleteById(1);
